@@ -92,11 +92,29 @@ enum CommandSource {
 };
 
 // ==================== TUNABLES (pins untouched) ====================
-// SMS command whitelist. "" = koi bhi number command bhej sakta hai (insecure).
-// Example: "+919876543210" (last 10 digits compare hote hain)
+// SMS command whitelist: comma-separated numbers, e.g. "+919876543210,+919812345678".
+// Matching strict hai: sirf digits (+ optional '+'), kam se kam 10 digits; dono numbers me country
+// code ho to poora number match, warna 10-digit national number. Short/alphanumeric senders kabhi nahi.
+// "" (default) = SMS commands DISABLED (fail-closed). Production build me platformio.ini se set karein:
+//   build_flags = -D GSM_ALLOWED_SENDER=\"+919876543210\"
 #ifndef GSM_ALLOWED_SENDER
 #define GSM_ALLOWED_SENDER  ""
 #endif
+// Sirf lab testing ke liye: 1 = kisi bhi number se SMS command accept (boot par warning print hoti hai)
+#ifndef GSM_ALLOW_ANY_SENDER
+#define GSM_ALLOW_ANY_SENDER 0
+#endif
+// 1 = 110 (clear logs) / 111 (factory reset) SMS se bhi allowed. Default 0: sirf BLE/UART se.
+#ifndef GSM_SMS_ALLOW_DESTRUCTIVE
+#define GSM_SMS_ALLOW_DESTRUCTIVE 0
+#endif
 #define WDT_TIMEOUT_S       10
+
+// HARDWARE NOTE (strapping pins, verify on schematic/production line):
+//  - GPIO12 (MTDI) reset ke waqt HIGH ho to VDD_SDIO = 1.8 V select hota hai. Magnetic sensor ka 47K
+//    pull-up box OPEN hone par GPIO12 ko HIGH rakhta hai -> box khula ho aur reset/power-on ho to 3.3 V
+//    flash wale module boot fail kar sakte hain. Production me eFuse se flash voltage fix karein:
+//      espefuse.py --port COMx set_flash_voltage 3.3V   (one-time, irreversible)
+//  - GPIO2 (DTR) download mode me LOW/floating hona chahiye; modem side GPIO2 ko HIGH na kheeche.
 
 #endif // CONFIG_H

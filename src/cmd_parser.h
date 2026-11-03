@@ -14,7 +14,7 @@ public:
 private:
     BleSendCallback bleSend = nullptr;
     void sendReply(const String& reply, CommandSource src);
-    int splitCSV(const String& str, String* tokens, int maxTokens);
+    int splitCSV(const String& str, String* tokens, int maxTokens, bool& overflow);
 };
 
 extern CommandParser cmdParser;
