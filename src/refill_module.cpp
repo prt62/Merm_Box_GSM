@@ -4,6 +4,14 @@
 RefillModule refillMod;
 static Preferences refillPrefs;
 
+static const RefillConfig REFILL_DEFAULT = {false, 0, 0, 0, 0, 0, 0, true};
+
+bool RefillModule::validDate(int dd, int mm, int yy) {
+    if (yy < 0 || yy > 99 || mm < 1 || mm > 12 || dd < 1) return false;
+    static const uint8_t dim[12] = {31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31}; // Feb: leap-safe upper bound
+    return dd <= dim[mm - 1];
+}
+
 void RefillModule::begin() {
     pinMode(PIN_LED2_REFILL, OUTPUT);
     digitalWrite(PIN_LED2_REFILL, LOW);
@@ -11,19 +19,27 @@ void RefillModule::begin() {
 }
 
 void RefillModule::loadFromStorage() {
-    refillPrefs.begin("merm_refill", false);
-    if (refillPrefs.isKey("refCfg")) {
-        refillPrefs.getBytes("refCfg", &cfg, sizeof(cfg));
-    } else {
-        cfg = {false, 0, 0, 0, 0, 0, 0, true};
+    cfg = REFILL_DEFAULT;
+    if (!refillPrefs.begin("merm_refill", false)) return;
+    if (refillPrefs.getBytesLength("refCfg") == sizeof(cfg)) {
+        RefillConfig tmp;
+        refillPrefs.getBytes("refCfg", &tmp, sizeof(tmp));
+        // Sanity: corrupt data ko reject karein
+        if (!tmp.configured ||
+            (validDate(tmp.preDD, tmp.preMM, tmp.preYY) && validDate(tmp.dueDD, tmp.dueMM, tmp.dueYY))) {
+            cfg = tmp;
+            cfg.configured = tmp.configured ? true : false;
+            cfg.refillDone = tmp.refillDone ? true : false;
+        }
     }
     refillPrefs.end();
 }
 
-void RefillModule::saveToStorage() {
-    refillPrefs.begin("merm_refill", false);
-    refillPrefs.putBytes("refCfg", &cfg, sizeof(cfg));
+bool RefillModule::saveToStorage() {
+    if (!refillPrefs.begin("merm_refill", false)) return false;
+    bool ok = (refillPrefs.putBytes("refCfg", &cfg, sizeof(cfg)) == sizeof(cfg));
     refillPrefs.end();
+    return ok;
 }
 
 uint32_t RefillModule::toDateVal(uint8_t dd, uint8_t mm, uint8_t yy) {
@@ -51,31 +67,30 @@ void RefillModule::update(const DateTimeData& currentDT) {
     }
 }
 
-bool RefillModule::setRefillDates(uint8_t preDD, uint8_t preMM, uint8_t preYY,
-                                  uint8_t dueDD, uint8_t dueMM, uint8_t dueYY) {
+bool RefillModule::setRefillDates(int preDD, int preMM, int preYY,
+                                  int dueDD, int dueMM, int dueYY) {
+    if (preYY >= 2000 && preYY <= 2099) preYY -= 2000; // 4-digit year bhi chalega
+    if (dueYY >= 2000 && dueYY <= 2099) dueYY -= 2000;
+    if (!validDate(preDD, preMM, preYY) || !validDate(dueDD, dueMM, dueYY)) return false;
+    if (toDateVal(preDD, preMM, preYY) > toDateVal(dueDD, dueMM, dueYY)) return false; // pre-reminder due se pehle
+
     cfg.configured = true;
-    cfg.preDD = preDD;
-    cfg.preMM = preMM;
-    cfg.preYY = preYY;
-    cfg.dueDD = dueDD;
-    cfg.dueMM = dueMM;
-    cfg.dueYY = dueYY;
+    cfg.preDD = preDD; cfg.preMM = preMM; cfg.preYY = preYY;
+    cfg.dueDD = dueDD; cfg.dueMM = dueMM; cfg.dueYY = dueYY;
     cfg.refillDone = false;
-    saveToStorage();
-    return true;
+    return saveToStorage();
 }
 
 bool RefillModule::setRefillDone() {
     cfg.refillDone = true;
     digitalWrite(PIN_LED2_REFILL, LOW);
-    saveToStorage();
-    return true;
+    return saveToStorage();
 }
 
-void RefillModule::resetRefill() {
-    cfg = {false, 0, 0, 0, 0, 0, 0, true};
+bool RefillModule::resetRefill() {
+    cfg = REFILL_DEFAULT;
     digitalWrite(PIN_LED2_REFILL, LOW);
-    saveToStorage();
+    return saveToStorage();
 }
 
 String RefillModule::getRefillDateString() {

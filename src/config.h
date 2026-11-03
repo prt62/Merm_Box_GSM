@@ -91,4 +91,12 @@ enum CommandSource {
     SRC_GSM_SERVER = 2
 };
 
+// ==================== TUNABLES (pins untouched) ====================
+// SMS command whitelist. "" = koi bhi number command bhej sakta hai (insecure).
+// Example: "+919876543210" (last 10 digits compare hote hain)
+#ifndef GSM_ALLOWED_SENDER
+#define GSM_ALLOWED_SENDER  ""
+#endif
+#define WDT_TIMEOUT_S       10
+
 #endif // CONFIG_H

@@ -5,6 +5,7 @@
 
 typedef void (*BleSendCallback)(const String& data);
 
+// Sirf main loop task se call karein (BLE callbacks se direct nahi - main.cpp queue use karta hai).
 class CommandParser {
 public:
     void setBleCallback(BleSendCallback cb);
